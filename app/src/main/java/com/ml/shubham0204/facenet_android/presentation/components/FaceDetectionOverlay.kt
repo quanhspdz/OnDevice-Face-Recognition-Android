@@ -8,6 +8,8 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
+import android.util.Size
+import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.widget.FrameLayout
@@ -29,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@Suppress("DEPRECATION")
 @SuppressLint("ViewConstructor")
 @ExperimentalGetImage
 class FaceDetectionOverlay(
@@ -71,18 +74,17 @@ class FaceDetectionOverlay(
         cameraProviderFuture.addListener(
             {
                 val cameraProvider = cameraProviderFuture.get()
-                val preview =
-                    Preview.Builder().build().also {
+                val preview = Preview.Builder()
+                    .setTargetResolution(Size(480, 640)) // Set the desired resolution here
+                    .build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
-                val cameraSelector =
-                    CameraSelector.Builder().requireLensFacing(cameraFacing).build()
-                val frameAnalyzer =
-                    ImageAnalysis.Builder()
-                        .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                        .build()
+                val cameraSelector = CameraSelector.Builder().requireLensFacing(cameraFacing).build()
+                val frameAnalyzer = ImageAnalysis.Builder()
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                    .build()
                 frameAnalyzer.setAnalyzer(Executors.newSingleThreadExecutor(), analyzer)
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
@@ -94,10 +96,12 @@ class FaceDetectionOverlay(
             },
             executor
         )
+
         if (childCount == 2) {
             removeView(this.previewView)
             removeView(this.boundingBoxOverlay)
         }
+
         this.previewView = previewView
         addView(this.previewView)
 
@@ -118,42 +122,27 @@ class FaceDetectionOverlay(
             isProcessing = true
 
             // Transform android.net.Image to Bitmap
-            frameBitmap =
-                Bitmap.createBitmap(
-                    image.image!!.width,
-                    image.image!!.height,
-                    Bitmap.Config.ARGB_8888
-                )
-            frameBitmap.copyPixelsFromBuffer(image.planes[0].buffer)
+            val imageProxy = image
+            val imageWidth = imageProxy.width
+            val imageHeight = imageProxy.height
+            frameBitmap = Bitmap.createBitmap(imageWidth, imageHeight, Bitmap.Config.ARGB_8888)
+            frameBitmap.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
 
             // Configure frameHeight and frameWidth for output2overlay transformation matrix
-            // and apply it to `frameBitmap`
             if (!isImageTransformedInitialized) {
-                imageTransform = Matrix()
-                imageTransform.apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) }
+                imageTransform = Matrix().apply { postRotate(imageProxy.imageInfo.rotationDegrees.toFloat()) }
                 isImageTransformedInitialized = true
             }
-            frameBitmap =
-                Bitmap.createBitmap(
-                    frameBitmap,
-                    0,
-                    0,
-                    frameBitmap.width,
-                    frameBitmap.height,
-                    imageTransform,
-                    false
-                )
+            frameBitmap = Bitmap.createBitmap(frameBitmap, 0, 0, frameBitmap.width, frameBitmap.height, imageTransform, false)
 
             if (!isBoundingBoxTransformedInitialized) {
-                boundingBoxTransform = Matrix()
-                boundingBoxTransform.apply {
+                boundingBoxTransform = Matrix().apply {
                     setScale(
                         overlayWidth / frameBitmap.width.toFloat(),
                         overlayHeight / frameBitmap.height.toFloat()
                     )
                     if (cameraFacing == CameraSelector.LENS_FACING_FRONT) {
-                        // Mirror the bounding box coordinates
-                        // for front-facing camera
+                        // Mirror the bounding box coordinates for the front-facing camera
                         postScale(
                             -1f,
                             1f,
@@ -164,11 +153,11 @@ class FaceDetectionOverlay(
                 }
                 isBoundingBoxTransformedInitialized = true
             }
+
             CoroutineScope(Dispatchers.Default).launch {
                 val predictions = ArrayList<Prediction>()
                 val (metrics, results) = viewModel.imageVectorUseCase.getNearestPersonName(frameBitmap)
-                results.forEach {
-                    (name, boundingBox) ->
+                results.forEach { (name, boundingBox) ->
                     val box = boundingBox.toRectF()
                     var personName = name
                     if (viewModel.getNumPeople().toInt() == 0) {
