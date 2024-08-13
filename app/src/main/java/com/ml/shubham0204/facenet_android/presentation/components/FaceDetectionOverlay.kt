@@ -50,7 +50,7 @@ class FaceDetectionOverlay(
 
     private lateinit var frameBitmap: Bitmap
     private var isProcessing = false
-    private var cameraFacing: Int = CameraSelector.LENS_FACING_BACK
+    private var cameraFacing: Int = CameraSelector.LENS_FACING_FRONT
     private lateinit var boundingBoxOverlay: BoundingBoxOverlay
     private lateinit var previewView: PreviewView
 
@@ -79,7 +79,8 @@ class FaceDetectionOverlay(
                     .build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
-                val cameraSelector = CameraSelector.Builder().requireLensFacing(cameraFacing).build()
+                val cameraSelector =
+                    CameraSelector.Builder().requireLensFacing(cameraFacing).build()
                 val frameAnalyzer = ImageAnalysis.Builder()
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -130,10 +131,19 @@ class FaceDetectionOverlay(
 
             // Configure frameHeight and frameWidth for output2overlay transformation matrix
             if (!isImageTransformedInitialized) {
-                imageTransform = Matrix().apply { postRotate(imageProxy.imageInfo.rotationDegrees.toFloat()) }
+                imageTransform =
+                    Matrix().apply { postRotate(imageProxy.imageInfo.rotationDegrees.toFloat()) }
                 isImageTransformedInitialized = true
             }
-            frameBitmap = Bitmap.createBitmap(frameBitmap, 0, 0, frameBitmap.width, frameBitmap.height, imageTransform, false)
+            frameBitmap = Bitmap.createBitmap(
+                frameBitmap,
+                0,
+                0,
+                frameBitmap.width,
+                frameBitmap.height,
+                imageTransform,
+                false
+            )
 
             if (!isBoundingBoxTransformedInitialized) {
                 boundingBoxTransform = Matrix().apply {
@@ -156,7 +166,9 @@ class FaceDetectionOverlay(
 
             CoroutineScope(Dispatchers.Default).launch {
                 val predictions = ArrayList<Prediction>()
-                val (metrics, results) = viewModel.imageVectorUseCase.getNearestPersonName(frameBitmap)
+                val (metrics, results) = viewModel.imageVectorUseCase.getNearestPersonName(
+                    frameBitmap
+                )
                 results.forEach { (name, boundingBox) ->
                     val box = boundingBox.toRectF()
                     var personName = name
@@ -183,14 +195,15 @@ class FaceDetectionOverlay(
 
         private val boxPaint =
             Paint().apply {
-                color = Color.parseColor("#4D90caf9")
-                style = Paint.Style.FILL
+                color = Color.GREEN
+                style = Paint.Style.STROKE
+                strokeWidth = 8.0f
             }
         private val textPaint =
             Paint().apply {
-                strokeWidth = 2.0f
-                textSize = 36f
-                color = Color.WHITE
+                strokeWidth = 4.0f
+                textSize = 50f
+                color = Color.GREEN
             }
 
         override fun surfaceCreated(holder: SurfaceHolder) {}
@@ -201,8 +214,8 @@ class FaceDetectionOverlay(
 
         override fun onDraw(canvas: Canvas) {
             predictions.forEach {
-                canvas.drawRoundRect(it.bbox, 16f, 16f, boxPaint)
-                canvas.drawText(it.label, it.bbox.centerX(), it.bbox.centerY(), textPaint)
+                canvas.drawRoundRect(it.bbox, 8f, 8f, boxPaint)
+                canvas.drawText(it.label, it.bbox.left, it.bbox.top - 10f, textPaint)
             }
         }
     }

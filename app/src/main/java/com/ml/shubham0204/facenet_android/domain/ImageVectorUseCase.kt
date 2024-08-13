@@ -8,6 +8,7 @@ import com.ml.shubham0204.facenet_android.data.ImagesVectorDB
 import com.ml.shubham0204.facenet_android.data.RecognitionMetrics
 import com.ml.shubham0204.facenet_android.domain.embeddings.FaceNet
 import com.ml.shubham0204.facenet_android.domain.face_detection.MediapipeFaceDetector
+import java.text.DecimalFormat
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.pow
@@ -23,6 +24,10 @@ constructor(
     private val imagesVectorDB: ImagesVectorDB,
     private val faceNet: FaceNet
 ) {
+
+    companion object {
+        const val THRESHOLD = 0.75
+    }
 
     // Add the person's image to the database
     suspend fun addImage(personID: Long, personName: String, imageUri: Uri): Result<Boolean> {
@@ -72,10 +77,17 @@ constructor(
             // Calculate cosine similarity between the nearest-neighbor
             // and the query embedding
             val distance = cosineDistance(embedding, recognitionResult.faceEmbedding)
-            // If the distance > 0.4, we recognize the person
+            // If the distance > threshold, we recognize the person
             // else we conclude that the face does not match enough
-            if (distance > 0.4) {
-                faceRecognitionResults.add(Pair(recognitionResult.personName, boundingBox))
+            if (distance > THRESHOLD) {
+                val decimalFormat = DecimalFormat("#.##")
+                val formattedDistance = decimalFormat.format(distance)
+                faceRecognitionResults.add(
+                    Pair(
+                        "${recognitionResult.personName} $formattedDistance",
+                        boundingBox
+                    )
+                )
             } else {
                 faceRecognitionResults.add(Pair("Not recognized", boundingBox))
             }

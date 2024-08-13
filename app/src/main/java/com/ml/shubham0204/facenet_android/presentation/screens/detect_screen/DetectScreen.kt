@@ -53,7 +53,7 @@ import com.ml.shubham0204.facenet_android.presentation.components.createAlertDia
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 
 private val cameraPermissionStatus = mutableStateOf(false)
-private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_BACK)
+private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_FRONT)
 private lateinit var cameraPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
